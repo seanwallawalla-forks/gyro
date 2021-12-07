@@ -240,6 +240,7 @@ fn indexerCb(stats_c: [*c]const c.git_indexer_progress, payload: ?*c_void) callc
 }
 
 fn submoduleCbImpl(sm: ?*c.git_submodule, sm_name: [*c]const u8, payload: ?*c_void) !void {
+    assert(sm != null);
     const parent_state = @ptrCast(*CloneState, @alignCast(@alignOf(*CloneState), payload));
     const arena = parent_state.arena;
     const allocator = arena.child_allocator;
@@ -257,6 +258,7 @@ fn submoduleCbImpl(sm: ?*c.git_submodule, sm_name: [*c]const u8, payload: ?*c_vo
         c.git_submodule_head_id(sm),
     );
 
+    std.log.debug("git submodule {}, url: {s}", .{ sm, c.git_submodule_url(sm) });
     var handle = try main.display.createEntry(.{
         .sub = .{
             .url = try arena.allocator.dupe(u8, std.mem.spanZ(c.git_submodule_url(sm))),

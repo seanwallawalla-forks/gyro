@@ -52,7 +52,7 @@ const UpdateState = struct {
     errors: std.AutoHashMap(usize, void),
     new_size: ?Size,
 
-    fn init(allocator: *std.mem.Allocator) UpdateState {
+    fn init(allocator: std.mem.Allocator) UpdateState {
         return UpdateState{
             .current_len = 0,
             .entries = std.ArrayList(Entry).init(allocator),
@@ -88,7 +88,7 @@ const Self = @This();
 mode: union(enum) {
     direct_log: void,
     ansi: struct {
-        allocator: *std.mem.Allocator,
+        allocator: std.mem.Allocator,
         arena: std.heap.ArenaAllocator,
         entries: std.ArrayList(Entry),
         logs: std.ArrayList([]const u8),
@@ -108,7 +108,7 @@ mode: union(enum) {
     },
 },
 
-pub fn init(location: *Self, allocator: *std.mem.Allocator) !void {
+pub fn init(location: *Self, allocator: std.mem.Allocator) !void {
     var size = Size{
         .rows = 24,
         .cols = 80,

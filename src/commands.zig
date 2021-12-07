@@ -23,7 +23,7 @@ fn assertFileExistsInCwd(subpath: []const u8) !void {
 }
 
 // move to an explicit step later, for now make it automatic and slick
-fn migrateGithubLockfile(allocator: *Allocator, file: std.fs.File) !void {
+fn migrateGithubLockfile(allocator: Allocator, file: std.fs.File) !void {
     var to_lines = std.ArrayList([]const u8).init(allocator);
     defer to_lines.deinit();
 
@@ -80,7 +80,7 @@ fn migrateGithubLockfile(allocator: *Allocator, file: std.fs.File) !void {
     try file.seekTo(0);
 }
 
-pub fn fetch(allocator: *Allocator) !void {
+pub fn fetch(allocator: Allocator) !void {
     var arena = ThreadSafeArenaAllocator.init(allocator);
     defer arena.deinit();
 
@@ -117,7 +117,7 @@ pub fn fetch(allocator: *Allocator) !void {
 }
 
 pub fn update(
-    allocator: *Allocator,
+    allocator: Allocator,
     targets: []const []const u8,
 ) !void {
     if (targets.len == 0) {
@@ -165,7 +165,7 @@ const EnvInfo = struct {
     version: []const u8,
 };
 
-pub fn build(allocator: *Allocator, args: *clap.args.OsIterator) !void {
+pub fn build(allocator: Allocator, args: *clap.args.OsIterator) !void {
     try assertFileExistsInCwd("build.zig");
 
     var fifo = std.fifo.LinearFifo(u8, .{ .Dynamic = {} }).init(allocator);
@@ -316,7 +316,7 @@ pub fn build(allocator: *Allocator, args: *clap.args.OsIterator) !void {
 }
 
 pub fn package(
-    allocator: *Allocator,
+    allocator: Allocator,
     output_dir: ?[]const u8,
     names: []const []const u8,
 ) !void {
@@ -379,7 +379,7 @@ fn maybePrintKey(
 }
 
 pub fn init(
-    allocator: *Allocator,
+    allocator: Allocator,
     link: ?[]const u8,
 ) !void {
     const file = std.fs.cwd().createFile("gyro.zzz", .{ .exclusive = true }) catch |err| {
@@ -473,7 +473,7 @@ fn verifyUniqueAlias(alias: []const u8, deps: []const Dependency) !void {
 }
 
 pub fn add(
-    allocator: *Allocator,
+    allocator: Allocator,
     src_tag: Dependency.SourceType,
     alias: ?[]const u8,
     build_deps: bool,
@@ -663,7 +663,7 @@ pub fn add(
 }
 
 pub fn rm(
-    allocator: *Allocator,
+    allocator: Allocator,
     build_deps: bool,
     targets: []const []const u8,
 ) !void {
@@ -720,7 +720,7 @@ pub fn rm(
     try project.toFile(file);
 }
 
-pub fn publish(allocator: *Allocator, pkg: ?[]const u8) !void {
+pub fn publish(allocator: Allocator, hostname: ?[]const u8, pkg: ?[]const u8) !void {
     const client_id = "ea14bba19a49f4cba053";
     const scope = "read:user user:email";
 
@@ -802,14 +802,18 @@ pub fn publish(allocator: *Allocator, pkg: ?[]const u8) !void {
         var browser = try std.ChildProcess.init(&.{ open_program, "https://github.com/login/device" }, allocator);
         defer browser.deinit();
 
-        _ = browser.spawnAndWait() catch {
+        browser.stdout_behavior = .Ignore;
+        browser.stderr_behavior = .Ignore;
+
+        _ = browser.spawn() catch {
             try std.io.getStdErr().writer().print("Failed to open your browser, please go to https://github.com/login/device", .{});
         };
+        defer _ = browser.wait() catch {};
 
+        const stderr = std.io.getStdErr().writer();
         var device_code_resp = try api.postDeviceCode(allocator, client_id, scope);
         defer std.json.parseFree(api.DeviceCodeResponse, device_code_resp, .{ .allocator = allocator });
 
-        const stderr = std.io.getStdErr().writer();
         try stderr.print("enter this code: {s}\nwaiting for github authentication...\n", .{device_code_resp.user_code});
 
         const end_time = device_code_resp.expires_in + @intCast(u64, std.time.timestamp());
@@ -838,7 +842,7 @@ pub fn publish(allocator: *Allocator, pkg: ?[]const u8) !void {
         return error.Explained;
     }
 
-    try api.postPublish(allocator, access_token.?, project.get(name).?);
+    try api.postPublish(allocator, access_token.?, hostname, project.get(name).?);
 }
 
 fn validateDepsAliases(redirected_deps: []const Dependency, project_deps: []const Dependency) !void {
@@ -864,7 +868,7 @@ fn moveDeps(redirected_deps: []const Dependency, project_deps: []Dependency) !vo
 }
 
 /// make sure there are no entries in the redirect file
-fn validateNoRedirects(allocator: *Allocator) !void {
+fn validateNoRedirects(allocator: Allocator) !void {
     var arena = ThreadSafeArenaAllocator.init(allocator);
     defer arena.deinit();
 
@@ -886,7 +890,7 @@ fn validateNoRedirects(allocator: *Allocator) !void {
 }
 
 pub fn redirect(
-    allocator: *Allocator,
+    allocator: Allocator,
     check: bool,
     clean: bool,
     build_dep: bool,

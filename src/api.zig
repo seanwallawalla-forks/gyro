@@ -11,7 +11,7 @@ const utils = @import("utils.zig");
 const Allocator = std.mem.Allocator;
 
 pub fn getLatest(
-    allocator: *Allocator,
+    allocator: Allocator,
     repository: []const u8,
     user: []const u8,
     package: []const u8,
@@ -80,7 +80,7 @@ pub fn getLatest(
 }
 
 pub fn getHeadCommit(
-    allocator: *Allocator,
+    allocator: Allocator,
     user: []const u8,
     repo: []const u8,
     ref: []const u8,
@@ -109,7 +109,7 @@ pub fn getHeadCommit(
 }
 
 pub fn getPkg(
-    allocator: *Allocator,
+    allocator: Allocator,
     repository: []const u8,
     user: []const u8,
     package: []const u8,
@@ -161,7 +161,7 @@ const HttpCallbackStream = struct {
 };
 
 fn getTarGzImpl(
-    allocator: *Allocator,
+    allocator: Allocator,
     url: []const u8,
     dir: std.fs.Dir,
     skip_depth: usize,
@@ -188,7 +188,7 @@ fn getTarGzImpl(
 }
 
 pub fn getTarGz(
-    allocator: *Allocator,
+    allocator: Allocator,
     url: []const u8,
     dir: std.fs.Dir,
     cb: ?HttpCallback,
@@ -198,7 +198,7 @@ pub fn getTarGz(
 }
 
 pub fn getGithubTarGz(
-    allocator: *Allocator,
+    allocator: Allocator,
     user: []const u8,
     repo: []const u8,
     commit: []const u8,
@@ -219,7 +219,7 @@ pub fn getGithubTarGz(
 }
 
 pub fn getGithubRepo(
-    allocator: *Allocator,
+    allocator: Allocator,
     user: []const u8,
     repo: []const u8,
 ) !std.json.ValueTree {
@@ -247,7 +247,7 @@ pub fn getGithubRepo(
 }
 
 pub fn getGithubTopics(
-    allocator: *Allocator,
+    allocator: Allocator,
     user: []const u8,
     repo: []const u8,
 ) !std.json.ValueTree {
@@ -271,7 +271,7 @@ pub fn getGithubTopics(
 }
 
 pub fn getGithubGyroFile(
-    allocator: *Allocator,
+    allocator: Allocator,
     user: []const u8,
     repo: []const u8,
     commit: []const u8,
@@ -311,7 +311,7 @@ pub const DeviceCodeResponse = struct {
 };
 
 pub fn postDeviceCode(
-    allocator: *Allocator,
+    allocator: Allocator,
     client_id: []const u8,
     scope: []const u8,
 ) !DeviceCodeResponse {
@@ -340,7 +340,7 @@ const PollDeviceCodeResponse = struct {
 };
 
 pub fn pollDeviceCode(
-    allocator: *Allocator,
+    allocator: Allocator,
     client_id: []const u8,
     device_code: []const u8,
 ) !?[]const u8 {
@@ -376,25 +376,25 @@ pub fn pollDeviceCode(
 }
 
 pub fn postPublish(
-    allocator: *Allocator,
+    allocator: Allocator,
     access_token: []const u8,
+    opt_hostname: ?[]const u8,
     pkg: *Package,
 ) !void {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
     try pkg.bundle(std.fs.cwd(), std.fs.cwd());
-
-    const filename = try pkg.filename(allocator);
-    defer allocator.free(filename);
-
+    const filename = try pkg.filename(&arena.allocator);
     const file = try std.fs.cwd().openFile(filename, .{});
     defer {
         file.close();
         std.fs.cwd().deleteFile(filename) catch {};
     }
 
-    const authorization = try std.fmt.allocPrint(allocator, "Bearer github {s}", .{access_token});
-    defer allocator.free(authorization);
-
-    const url = "https://" ++ utils.default_repo ++ "/publish";
+    const hostname = opt_hostname orelse utils.default_repo;
+    const url = try std.fmt.allocPrint(&arena.allocator, "https://{s}/publish", .{hostname});
+    const authorization = try std.fmt.allocPrint(&arena.allocator, "Bearer github {s}", .{access_token});
     var headers = zfetch.Headers.init(allocator);
     defer headers.deinit();
 
@@ -402,15 +402,11 @@ pub fn postPublish(
     try headers.set("Accept", "*/*");
     try headers.set("Authorization", authorization);
 
-    const payload = try file.reader().readAllAlloc(allocator, std.math.maxInt(usize));
-    defer allocator.free(payload);
-
+    const payload = try file.reader().readAllAlloc(&arena.allocator, std.math.maxInt(usize));
     var req = try request(allocator, .POST, url, &headers, payload);
     defer req.deinit();
 
-    const body = try req.reader().readAllAlloc(allocator, std.math.maxInt(usize));
-    defer allocator.free(body);
-
+    const body = try req.reader().readAllAlloc(&arena.allocator, std.math.maxInt(usize));
     const stderr = std.io.getStdErr().writer();
     defer stderr.print("{s}\n", .{body}) catch {};
 }
@@ -452,7 +448,7 @@ fn request(
                 defer allocator.free(body);
 
                 const stderr = std.io.getStdErr().writer();
-                try stderr.print("got http status code for {s}: {}", .{ url, ret.status.code });
+                try stderr.print("got http status code for {s}: {}\n", .{ url, ret.status.code });
                 try stderr.print("{s}\n", .{body});
                 return error.Explained;
             },

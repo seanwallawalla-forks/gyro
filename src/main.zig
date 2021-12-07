@@ -94,7 +94,7 @@ fn help(comptime command: completion.Command) !void {
     try stderr.writeAll("\n");
 }
 
-fn runCommands(allocator: *std.mem.Allocator) !void {
+fn runCommands(allocator: std.mem.Allocator) !void {
     const stderr = std.io.getStdErr().writer();
 
     var iter = try clap.args.OsIterator.init(allocator);
@@ -167,7 +167,7 @@ pub const commands = struct {
         };
 
         pub const Args = info.ClapComptime();
-        pub fn run(allocator: *std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
+        pub fn run(allocator: std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
             const num = args.positionals().len;
             if (num > 1) {
                 std.log.err("that's too many args, please just give me one in the form of a link to your github repo or just '<user>/<repo>'", .{});
@@ -195,7 +195,7 @@ pub const commands = struct {
         };
 
         pub const Args = info.ClapComptime();
-        pub fn run(allocator: *std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
+        pub fn run(allocator: std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
             const src_str = args.option("--src") orelse "pkg";
             const src_tag = inline for (std.meta.fields(Dependency.SourceType)) |field| {
                 if (std.mem.eql(u8, src_str, field.name))
@@ -229,7 +229,7 @@ pub const commands = struct {
         };
 
         pub const Args = info.ClapComptime();
-        pub fn run(allocator: *std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
+        pub fn run(allocator: std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
             try cmds.rm(allocator, args.flag("--build-dep"), args.positionals());
         }
     };
@@ -247,7 +247,7 @@ pub const commands = struct {
         };
 
         pub const Args = info.ClapComptime();
-        pub fn run(allocator: *std.mem.Allocator, _: *Args, iterator: *clap.args.OsIterator) !void {
+        pub fn run(allocator: std.mem.Allocator, _: *Args, iterator: *clap.args.OsIterator) !void {
             try cmds.build(allocator, iterator);
         }
     };
@@ -263,7 +263,7 @@ pub const commands = struct {
         };
 
         pub const Args = info.ClapComptime();
-        pub fn run(allocator: *std.mem.Allocator, _: *Args, iterator: *clap.args.OsIterator) !void {
+        pub fn run(allocator: std.mem.Allocator, _: *Args, iterator: *clap.args.OsIterator) !void {
             _ = iterator;
             try cmds.fetch(allocator);
         }
@@ -281,7 +281,7 @@ pub const commands = struct {
         };
 
         pub const Args = info.ClapComptime();
-        pub fn run(allocator: *std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
+        pub fn run(allocator: std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
             try cmds.update(allocator, args.positionals());
         }
     };
@@ -291,15 +291,16 @@ pub const commands = struct {
             var cmd = completion.Command.init("publish", "Publish package to astrolabe.pm, requires github account", publish);
 
             cmd.addFlag('h', "help", "Display help");
-            cmd.addPositional("package", ?completion.Param.Package, .one, "The package to publish");
+            cmd.addOption('r', "repository", "repository", completion.Param.Repository, "Hostname of the repository to publish to");
+            cmd.addOption('p', "package", "package", completion.Param.Package, "The package to publish");
 
             cmd.done();
             break :blk cmd;
         };
 
         pub const Args = info.ClapComptime();
-        pub fn run(allocator: *std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
-            try cmds.publish(allocator, if (args.positionals().len > 0) args.positionals()[0] else null);
+        pub fn run(allocator: std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
+            try cmds.publish(allocator, args.option("--repository"), args.option("--package"));
         }
     };
 
@@ -316,7 +317,7 @@ pub const commands = struct {
         };
 
         pub const Args = info.ClapComptime();
-        pub fn run(allocator: *std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
+        pub fn run(allocator: std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
             try cmds.package(allocator, args.option("--output-dir"), args.positionals());
         }
     };
@@ -337,7 +338,7 @@ pub const commands = struct {
         };
 
         pub const Args = info.ClapComptime();
-        pub fn run(allocator: *std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
+        pub fn run(allocator: std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
             try cmds.redirect(allocator, args.flag("--check"), args.flag("--clean"), args.flag("--build-dep"), args.option("--alias"), args.option("--path"));
         }
     };
@@ -356,7 +357,7 @@ pub const commands = struct {
         };
 
         pub const Args = info.ClapComptime();
-        pub fn run(allocator: *std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
+        pub fn run(allocator: std.mem.Allocator, args: *Args, _: *clap.args.OsIterator) !void {
             const positionals = args.positionals();
 
             if (positionals.len < 1) {

@@ -3,3 +3,4 @@ zig-out
 deps.zig
 .gyro
 build_runner.zig
+release-out
